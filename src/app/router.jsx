@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from '../components/layout/Layout'
 import { LoadingSpinner } from '../components/ui/LoadingSpinner'
 import { OfflinePage } from '../features/offline/OfflinePage'
@@ -8,6 +8,9 @@ import { NotificationsPage } from '../features/notifications/NotificationsPage'
 
 export function AppRouter() {
   console.log('🛣️ AppRouter rendering')
+  const location = useLocation()
+  console.log('📍 Current location:', location.pathname)
+  
   return (
     <Layout>
       <Suspense fallback={<LoadingSpinner />}>
