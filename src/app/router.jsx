@@ -9,11 +9,13 @@ import { NotificationsPage } from '../features/notifications/NotificationsPage'
 export function AppRouter() {
   return (
     <Layout>
+      <Suspense fallback={<LoadingSpinner />}>
+        <Routes future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Routes>
+      </Suspense>
       <OfflinePage />
-      <Routes future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-      </Routes>
     </Layout>
   )
 }

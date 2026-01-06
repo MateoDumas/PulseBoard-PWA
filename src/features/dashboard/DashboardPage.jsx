@@ -37,24 +37,26 @@ function generateMockData() {
 
 export function DashboardPage() {
   const { dashboardData, setDashboardData, isOnline, addToast } = useAppStore()
-  const [loading, setLoading] = useState(false) // Start as false to show content immediately
+  const [loading, setLoading] = useState(false)
   const [chartType, setChartType] = useState('area')
   const [dateFilter, setDateFilter] = useState(null)
   const [alerts, setAlerts] = useState([])
   const [isStale, setIsStale] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Initialize with mock data immediately if empty
+  // Initialize with mock data immediately - CRITICAL for first render
   useEffect(() => {
-    if (!dashboardData.metrics || dashboardData.metrics.length === 0) {
-      setDashboardData(generateMockData())
+    const metrics = dashboardData?.metrics || []
+    if (metrics.length === 0) {
+      const mockData = generateMockData()
+      setDashboardData(mockData)
     }
-  }, []) // Run only once on mount
+  }, [])
 
   // Socket connection for real-time updates
   const { isConnected } = useSocket('dashboard:update', (data) => {
     try {
-      if (data && data.metrics) {
+      if (data && data.metrics && Array.isArray(data.metrics)) {
         setDashboardData(data)
       }
     } catch (error) {
@@ -62,11 +64,10 @@ export function DashboardPage() {
     }
   })
 
-  // Initialize IndexedDB
+  // Initialize IndexedDB (non-blocking)
   useEffect(() => {
-    indexedDBService.init().catch((error) => {
-      console.warn('IndexedDB initialization failed:', error)
-      // Don't block rendering if IndexedDB fails
+    indexedDBService.init().catch(() => {
+      // Silently fail
     })
   }, [])
 
@@ -80,133 +81,36 @@ export function DashboardPage() {
     }
   }, [dashboardData.lastUpdate])
 
-  // Check alerts
-  useEffect(() => {
-    alerts.forEach((alert) => {
-      const metric = dashboardData.metrics.find((m) => m.id === alert.metricId)
-      if (metric) {
-        const value = typeof metric.value === 'string' 
-          ? parseFloat(metric.value.replace(/[^0-9.]/g, '')) 
-          : metric.value
-
-        let triggered = false
-        if (alert.condition === 'greater' && value > alert.threshold) triggered = true
-        if (alert.condition === 'less' && value < alert.threshold) triggered = true
-        if (alert.condition === 'equal' && value === alert.threshold) triggered = true
-
-        if (triggered) {
-          addToast({
-            message: `Alerta: ${metric.label} ${alert.condition === 'greater' ? 'superó' : alert.condition === 'less' ? 'bajó de' : 'es igual a'} ${alert.threshold}`,
-            type: 'warning',
-            duration: 5000,
-          })
-        }
-      }
-    })
-  }, [dashboardData.metrics, alerts, addToast])
-
   // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
+      if (!isOnline) return
+      
       setLoading(true)
       try {
-        if (isOnline) {
-          // Try to fetch from API
-          try {
-            const data = await apiService.get('/dashboard')
-            setDashboardData(data)
-            // Save to IndexedDB (don't block if it fails)
-            indexedDBService.saveData(data).catch(console.warn)
-            addToast?.({
-              message: 'Datos actualizados correctamente',
-              type: 'success',
-            })
-          } catch (error) {
-            // Fallback to IndexedDB or mock data
-            console.warn('API failed, trying IndexedDB:', error)
-            try {
-              const cachedData = await indexedDBService.getLatestData()
-              if (cachedData) {
-                setDashboardData(cachedData)
-                addToast?.({
-                  message: 'Usando datos en caché',
-                  type: 'info',
-                })
-              } else {
-                setDashboardData(generateMockData())
-              }
-            } catch (dbError) {
-              console.warn('IndexedDB failed, using mock data:', dbError)
-              setDashboardData(generateMockData())
-            }
-          }
-        } else {
-          // Use IndexedDB when offline
-          try {
-            const cachedData = await indexedDBService.getLatestData()
-            if (cachedData) {
-              setDashboardData(cachedData)
-              addToast?.({
-                message: 'Modo offline - Datos en caché',
-                type: 'info',
-              })
-            } else if (dashboardData.metrics.length === 0) {
-              setDashboardData(generateMockData())
-            }
-          } catch (dbError) {
-            console.warn('IndexedDB failed, using mock data:', dbError)
-            if (dashboardData.metrics.length === 0) {
-              setDashboardData(generateMockData())
-            }
-          }
+        const data = await apiService.get('/dashboard')
+        if (data && data.metrics) {
+          setDashboardData(data)
+          indexedDBService.saveData(data).catch(() => {})
         }
       } catch (error) {
-        console.error('Error fetching dashboard data:', error)
-        // Always set mock data as fallback
-        setDashboardData(generateMockData())
+        console.warn('API failed, using existing data:', error)
       } finally {
         setLoading(false)
       }
     }
 
     fetchData()
-
-    // Refresh data every 30 seconds when online
-    const interval = setInterval(() => {
-      if (isOnline) {
-        fetchData()
-      }
-    }, 30000)
-
+    const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
-  }, [isOnline])
-
-  // Sync when coming back online
-  useEffect(() => {
-    if (isOnline && dashboardData.lastUpdate) {
-      const fetchData = async () => {
-        try {
-          const data = await apiService.get('/dashboard')
-          setDashboardData(data)
-          await indexedDBService.saveData(data)
-          addToast({
-            message: 'Sincronización completada',
-            type: 'success',
-          })
-        } catch (error) {
-          console.error('Sync failed:', error)
-        }
-      }
-      fetchData()
-    }
-  }, [isOnline])
+  }, [isOnline, setDashboardData])
 
   // Ensure we always have data
-  const metrics = dashboardData.metrics || []
-  const chartData = dashboardData.chartData || []
+  const metrics = dashboardData?.metrics || []
+  const chartData = dashboardData?.chartData || []
 
-  // Show loading skeleton only if truly loading and no data
-  if (loading && metrics.length === 0) {
+  // If no metrics, show loading
+  if (metrics.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
@@ -259,28 +163,6 @@ export function DashboardPage() {
     }
   }
 
-  // Show empty state only if truly no data after loading
-  if (metrics.length === 0 && !loading) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <EmptyState
-          icon={
-            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-          }
-          title="No hay datos disponibles"
-          description="Los datos del dashboard aparecerán aquí cuando estén disponibles."
-          action={
-            <Button onClick={() => window.location.reload()}>
-              Recargar
-            </Button>
-          }
-        />
-      </div>
-    )
-  }
-
   const filteredMetrics = searchTerm && metrics.length > 0
     ? metrics.filter((metric) =>
         metric.label.toLowerCase().includes(searchTerm.toLowerCase())
@@ -319,7 +201,7 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <ComparisonPanel onCompare={(data) => addToast({ message: 'Comparación iniciada', type: 'info' })} />
+            <ComparisonPanel onCompare={() => addToast?.({ message: 'Comparación iniciada', type: 'info' })} />
             <AlertSettings onSave={(alert) => setAlerts([...alerts, { ...alert, id: Date.now(), metricId: alert.metric === 'usuarios' ? 1 : alert.metric === 'ventas' ? 2 : alert.metric === 'tiempo' ? 3 : 4 }])} />
             <ExportButton data={filteredChartData} />
           </div>
