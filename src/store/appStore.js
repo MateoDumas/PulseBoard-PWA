@@ -1,12 +1,23 @@
 import { create } from 'zustand'
 
+// Initial mock data to ensure dashboard always has content
+const initialMockData = {
+  metrics: [
+    { id: 1, label: 'Usuarios Activos', value: 750, trend: '+12%' },
+    { id: 2, label: 'Ventas Hoy', value: '$25000', trend: '+5%' },
+    { id: 3, label: 'Tiempo Promedio', value: '3min', trend: '-3%' },
+    { id: 4, label: 'Conversión', value: '3.5%', trend: '+1.2%' },
+  ],
+  chartData: Array.from({ length: 7 }, (_, i) => ({
+    date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' }),
+    value: Math.floor(Math.random() * 100) + 50,
+  })),
+  lastUpdate: new Date().toISOString(),
+}
+
 export const useAppStore = create((set) => ({
-  // Dashboard data
-  dashboardData: {
-    metrics: [],
-    charts: [],
-    lastUpdate: null,
-  },
+  // Dashboard data - initialize with mock data
+  dashboardData: initialMockData,
 
   // Online/Offline state
   isOnline: navigator.onLine,
