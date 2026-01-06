@@ -37,22 +37,15 @@ function generateMockData() {
 
 export function DashboardPage() {
   const { dashboardData, setDashboardData, isOnline, addToast } = useAppStore()
-  const [loading, setLoading] = useState(false)
   const [chartType, setChartType] = useState('area')
   const [dateFilter, setDateFilter] = useState(null)
   const [alerts, setAlerts] = useState([])
   const [isStale, setIsStale] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
-  // Initialize with mock data immediately - CRITICAL for first render
-  useEffect(() => {
-    const metrics = dashboardData?.metrics || []
-    if (metrics.length === 0) {
-      const mockData = generateMockData()
-      console.log('Initializing dashboard with mock data:', mockData)
-      setDashboardData(mockData)
-    }
-  }, [setDashboardData])
+  // Get metrics - use store data or fallback to empty array
+  const metrics = dashboardData?.metrics || []
+  const chartData = dashboardData?.chartData || []
 
   // Socket connection for real-time updates
   const { isConnected } = useSocket('dashboard:update', (data) => {
@@ -67,27 +60,24 @@ export function DashboardPage() {
 
   // Initialize IndexedDB (non-blocking)
   useEffect(() => {
-    indexedDBService.init().catch(() => {
-      // Silently fail
-    })
+    indexedDBService.init().catch(() => {})
   }, [])
 
   // Check for stale data
   useEffect(() => {
-    if (dashboardData.lastUpdate) {
+    if (dashboardData?.lastUpdate) {
       const lastUpdate = new Date(dashboardData.lastUpdate)
       const now = new Date()
       const minutesDiff = (now - lastUpdate) / (1000 * 60)
       setIsStale(minutesDiff > 5)
     }
-  }, [dashboardData.lastUpdate])
+  }, [dashboardData?.lastUpdate])
 
-  // Fetch initial data
+  // Fetch initial data (non-blocking)
   useEffect(() => {
+    if (!isOnline) return
+
     const fetchData = async () => {
-      if (!isOnline) return
-      
-      setLoading(true)
       try {
         const data = await apiService.get('/dashboard')
         if (data && data.metrics) {
@@ -95,9 +85,7 @@ export function DashboardPage() {
           indexedDBService.saveData(data).catch(() => {})
         }
       } catch (error) {
-        console.warn('API failed, using existing data:', error)
-      } finally {
-        setLoading(false)
+        // Silently fail - use existing data
       }
     }
 
@@ -106,30 +94,7 @@ export function DashboardPage() {
     return () => clearInterval(interval)
   }, [isOnline, setDashboardData])
 
-  // Ensure we always have data
-  const metrics = dashboardData?.metrics || []
-  const chartData = dashboardData?.chartData || []
-
-  console.log('Dashboard render - metrics:', metrics.length, 'chartData:', chartData.length)
-
-  // If no metrics, show loading
-  if (metrics.length === 0) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
-          <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[1, 2, 3, 4].map((i) => (
-            <MetricCardSkeleton key={i} />
-          ))}
-        </div>
-        <ChartSkeleton />
-      </div>
-    )
-  }
-
+  // Filter chart data
   const filteredChartData = dateFilter && chartData.length > 0
     ? chartData.filter((item) => {
         const itemDate = new Date(item.date)
@@ -137,6 +102,7 @@ export function DashboardPage() {
       })
     : chartData
 
+  // Prepare pie data
   const pieData = metrics.length > 0 
     ? metrics.map((metric) => ({
         name: metric.label,
@@ -146,6 +112,7 @@ export function DashboardPage() {
       }))
     : []
 
+  // Render chart based on type
   const renderChart = () => {
     switch (chartType) {
       case 'bar':
@@ -166,12 +133,14 @@ export function DashboardPage() {
     }
   }
 
+  // Filter metrics by search term
   const filteredMetrics = searchTerm && metrics.length > 0
     ? metrics.filter((metric) =>
         metric.label.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : metrics
 
+  // Always render - if no metrics, show empty state
   return (
     <div className="max-w-7xl mx-auto">
       {/* Breadcrumbs */}
@@ -236,20 +205,27 @@ export function DashboardPage() {
       ) : (
         <div className="mb-6 animate-fade-in">
           <EmptyState
-            title="No se encontraron métricas"
-            description="Intenta con otro término de búsqueda."
+            title="No hay métricas disponibles"
+            description="Los datos aparecerán aquí cuando estén disponibles."
+            action={
+              <Button onClick={() => window.location.reload()}>
+                Recargar
+              </Button>
+            }
           />
         </div>
       )}
 
       {/* Charts */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-700 mb-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Tendencias</h2>
-          <ChartSelector value={chartType} onChange={setChartType} />
+      {chartData.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-700 mb-6 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Tendencias</h2>
+            <ChartSelector value={chartType} onChange={setChartType} />
+          </div>
+          {renderChart()}
         </div>
-        {renderChart()}
-      </div>
+      )}
     </div>
   )
 }
