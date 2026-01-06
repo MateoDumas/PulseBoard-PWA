@@ -49,9 +49,10 @@ export function DashboardPage() {
     const metrics = dashboardData?.metrics || []
     if (metrics.length === 0) {
       const mockData = generateMockData()
+      console.log('Initializing dashboard with mock data:', mockData)
       setDashboardData(mockData)
     }
-  }, [])
+  }, [setDashboardData])
 
   // Socket connection for real-time updates
   const { isConnected } = useSocket('dashboard:update', (data) => {
@@ -108,6 +109,8 @@ export function DashboardPage() {
   // Ensure we always have data
   const metrics = dashboardData?.metrics || []
   const chartData = dashboardData?.chartData || []
+
+  console.log('Dashboard render - metrics:', metrics.length, 'chartData:', chartData.length)
 
   // If no metrics, show loading
   if (metrics.length === 0) {
