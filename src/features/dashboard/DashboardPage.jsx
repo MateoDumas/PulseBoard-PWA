@@ -37,17 +37,26 @@ function generateMockData() {
 
 export function DashboardPage() {
   const { dashboardData, setDashboardData, isOnline, addToast } = useAppStore()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false) // Start as false to show content immediately
   const [chartType, setChartType] = useState('area')
   const [dateFilter, setDateFilter] = useState(null)
   const [alerts, setAlerts] = useState([])
   const [isStale, setIsStale] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
+  // Initialize with mock data immediately if empty
+  useEffect(() => {
+    if (!dashboardData.metrics || dashboardData.metrics.length === 0) {
+      setDashboardData(generateMockData())
+    }
+  }, []) // Run only once on mount
+
   // Socket connection for real-time updates
   const { isConnected } = useSocket('dashboard:update', (data) => {
     try {
-      setDashboardData(data)
+      if (data && data.metrics) {
+        setDashboardData(data)
+      }
     } catch (error) {
       console.error('Error updating dashboard data:', error)
     }
@@ -192,15 +201,12 @@ export function DashboardPage() {
     }
   }, [isOnline])
 
-  // Ensure we have data - initialize with mock if empty
-  useEffect(() => {
-    if (!loading && dashboardData.metrics.length === 0) {
-      setDashboardData(generateMockData())
-    }
-  }, [loading, dashboardData.metrics.length, setDashboardData])
+  // Ensure we always have data
+  const metrics = dashboardData.metrics || []
+  const chartData = dashboardData.chartData || []
 
-  // Show loading skeleton
-  if (loading && dashboardData.metrics.length === 0) {
+  // Show loading skeleton only if truly loading and no data
+  if (loading && metrics.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
@@ -217,19 +223,21 @@ export function DashboardPage() {
     )
   }
 
-  const filteredChartData = dateFilter
-    ? (dashboardData.chartData || []).filter((item) => {
+  const filteredChartData = dateFilter && chartData.length > 0
+    ? chartData.filter((item) => {
         const itemDate = new Date(item.date)
         return itemDate >= new Date(dateFilter.startDate) && itemDate <= new Date(dateFilter.endDate)
       })
-    : dashboardData.chartData || []
+    : chartData
 
-  const pieData = dashboardData.metrics?.map((metric) => ({
-    name: metric.label,
-    value: typeof metric.value === 'string' 
-      ? parseFloat(metric.value.replace(/[^0-9.]/g, '')) 
-      : metric.value,
-  })) || []
+  const pieData = metrics.length > 0 
+    ? metrics.map((metric) => ({
+        name: metric.label,
+        value: typeof metric.value === 'string' 
+          ? parseFloat(metric.value.replace(/[^0-9.]/g, '')) 
+          : metric.value,
+      }))
+    : []
 
   const renderChart = () => {
     switch (chartType) {
@@ -252,7 +260,7 @@ export function DashboardPage() {
   }
 
   // Show empty state only if truly no data after loading
-  if (dashboardData.metrics.length === 0 && !loading) {
+  if (metrics.length === 0 && !loading) {
     return (
       <div className="max-w-7xl mx-auto">
         <EmptyState
@@ -273,11 +281,11 @@ export function DashboardPage() {
     )
   }
 
-  const filteredMetrics = searchTerm
-    ? dashboardData.metrics.filter((metric) =>
+  const filteredMetrics = searchTerm && metrics.length > 0
+    ? metrics.filter((metric) =>
         metric.label.toLowerCase().includes(searchTerm.toLowerCase())
       )
-    : dashboardData.metrics
+    : metrics
 
   return (
     <div className="max-w-7xl mx-auto">
