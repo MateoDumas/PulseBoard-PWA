@@ -150,7 +150,7 @@ export function DashboardPage() {
     }, 30000)
 
     return () => clearInterval(interval)
-  }, [isOnline, addToast])
+  }, [isOnline, addToast, setDashboardData])
 
   // Sync when coming back online
   useEffect(() => {
