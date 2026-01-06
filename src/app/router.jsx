@@ -7,6 +7,7 @@ import { DashboardPage } from '../features/dashboard/DashboardPage'
 import { NotificationsPage } from '../features/notifications/NotificationsPage'
 
 export function AppRouter() {
+  console.log('🛣️ AppRouter rendering')
   return (
     <Layout>
       <Suspense fallback={<LoadingSpinner />}>

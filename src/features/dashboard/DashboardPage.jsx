@@ -36,7 +36,10 @@ function generateMockData() {
 }
 
 export function DashboardPage() {
+  console.log('📊 DashboardPage component MOUNTED')
   const { dashboardData, setDashboardData, isOnline, addToast } = useAppStore()
+  console.log('📊 Dashboard data from store:', dashboardData)
+  
   const [chartType, setChartType] = useState('area')
   const [dateFilter, setDateFilter] = useState(null)
   const [alerts, setAlerts] = useState([])
@@ -46,6 +49,7 @@ export function DashboardPage() {
   // Get metrics - use store data or fallback to empty array
   const metrics = dashboardData?.metrics || []
   const chartData = dashboardData?.chartData || []
+  console.log('📊 Metrics count:', metrics.length, 'Chart data count:', chartData.length)
 
   // Socket connection for real-time updates
   const { isConnected } = useSocket('dashboard:update', (data) => {
