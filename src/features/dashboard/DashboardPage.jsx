@@ -46,12 +46,19 @@ export function DashboardPage() {
 
   // Socket connection for real-time updates
   const { isConnected } = useSocket('dashboard:update', (data) => {
-    setDashboardData(data)
+    try {
+      setDashboardData(data)
+    } catch (error) {
+      console.error('Error updating dashboard data:', error)
+    }
   })
 
   // Initialize IndexedDB
   useEffect(() => {
-    indexedDBService.init().catch(console.error)
+    indexedDBService.init().catch((error) => {
+      console.warn('IndexedDB initialization failed:', error)
+      // Don't block rendering if IndexedDB fails
+    })
   }, [])
 
   // Check for stale data
@@ -99,41 +106,54 @@ export function DashboardPage() {
           try {
             const data = await apiService.get('/dashboard')
             setDashboardData(data)
-            // Save to IndexedDB
-            await indexedDBService.saveData(data)
-            addToast({
+            // Save to IndexedDB (don't block if it fails)
+            indexedDBService.saveData(data).catch(console.warn)
+            addToast?.({
               message: 'Datos actualizados correctamente',
               type: 'success',
             })
           } catch (error) {
             // Fallback to IndexedDB or mock data
             console.warn('API failed, trying IndexedDB:', error)
-            const cachedData = await indexedDBService.getLatestData()
-            if (cachedData) {
-              setDashboardData(cachedData)
-              addToast({
-                message: 'Usando datos en caché',
-                type: 'info',
-              })
-            } else {
+            try {
+              const cachedData = await indexedDBService.getLatestData()
+              if (cachedData) {
+                setDashboardData(cachedData)
+                addToast?.({
+                  message: 'Usando datos en caché',
+                  type: 'info',
+                })
+              } else {
+                setDashboardData(generateMockData())
+              }
+            } catch (dbError) {
+              console.warn('IndexedDB failed, using mock data:', dbError)
               setDashboardData(generateMockData())
             }
           }
         } else {
           // Use IndexedDB when offline
-          const cachedData = await indexedDBService.getLatestData()
-          if (cachedData) {
-            setDashboardData(cachedData)
-            addToast({
-              message: 'Modo offline - Datos en caché',
-              type: 'info',
-            })
-          } else if (dashboardData.metrics.length === 0) {
-            setDashboardData(generateMockData())
+          try {
+            const cachedData = await indexedDBService.getLatestData()
+            if (cachedData) {
+              setDashboardData(cachedData)
+              addToast?.({
+                message: 'Modo offline - Datos en caché',
+                type: 'info',
+              })
+            } else if (dashboardData.metrics.length === 0) {
+              setDashboardData(generateMockData())
+            }
+          } catch (dbError) {
+            console.warn('IndexedDB failed, using mock data:', dbError)
+            if (dashboardData.metrics.length === 0) {
+              setDashboardData(generateMockData())
+            }
           }
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error)
+        // Always set mock data as fallback
         setDashboardData(generateMockData())
       } finally {
         setLoading(false)
@@ -150,7 +170,7 @@ export function DashboardPage() {
     }, 30000)
 
     return () => clearInterval(interval)
-  }, [isOnline, addToast, setDashboardData])
+  }, [isOnline])
 
   // Sync when coming back online
   useEffect(() => {

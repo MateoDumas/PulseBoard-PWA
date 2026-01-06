@@ -16,16 +16,16 @@ export default defineConfig({
         theme_color: '#3b82f6',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/',
+        start_url: process.env.GITHUB_PAGES ? '/PulseBoard-PWA/' : '/',
         icons: [
           {
-            src: 'pwa-192x192.svg',
+            src: process.env.GITHUB_PAGES ? '/PulseBoard-PWA/pwa-192x192.svg' : '/pwa-192x192.svg',
             sizes: '192x192',
             type: 'image/svg+xml',
             purpose: 'any maskable'
           },
           {
-            src: 'pwa-512x512.svg',
+            src: process.env.GITHUB_PAGES ? '/PulseBoard-PWA/pwa-512x512.svg' : '/pwa-512x512.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'any maskable'
