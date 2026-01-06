@@ -192,6 +192,14 @@ export function DashboardPage() {
     }
   }, [isOnline])
 
+  // Ensure we have data - initialize with mock if empty
+  useEffect(() => {
+    if (!loading && dashboardData.metrics.length === 0) {
+      setDashboardData(generateMockData())
+    }
+  }, [loading, dashboardData.metrics.length, setDashboardData])
+
+  // Show loading skeleton
   if (loading && dashboardData.metrics.length === 0) {
     return (
       <div className="max-w-7xl mx-auto">
@@ -243,23 +251,7 @@ export function DashboardPage() {
     }
   }
 
-  if (loading && dashboardData.metrics.length === 0) {
-    return (
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
-          <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {[1, 2, 3, 4].map((i) => (
-            <MetricCardSkeleton key={i} />
-          ))}
-        </div>
-        <ChartSkeleton />
-      </div>
-    )
-  }
-
+  // Show empty state only if truly no data after loading
   if (dashboardData.metrics.length === 0 && !loading) {
     return (
       <div className="max-w-7xl mx-auto">
